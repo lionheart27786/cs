@@ -1,65 +1,56 @@
-clc;close all;clear all;
-t=-5:0.01:5;
-f=2;
-w=2*pi*f;
-osr=250;
-fs1=w/pi;
-fs=fs1*osr;
-ts=-5:(1/fs):5;
-y=@(t)sin(w.*t);
-[u,q]=SDQ(y(ts),ts);
-z=0;
-for k=1:length(ts)
-    z=z+q(k).sinc(w.(t-ts(k)));
-end
-c=max(y(t))./max(z);
-figure(1)
-subplot(3,1,1)
-plot(t,y(t),'linewidth',2)
-title('original signal')
-xlabel('time')
-ylabel('amp')
-subplot(3,1,2)
-plot(ts,q)
-title('SDQ signal')
-xlabel('time')
-ylabel('amp')
-subplot(3,1,3)
-plot(t,z,'linewidth',2)
-title('reconstructed signal')
-xlabel('time')
-ylabel('amp')
-figure(2)
-plot(t,y(t),'linewidth',2)
-hold on
-plot(t,z,'linewidth',2)
-title('original vs reconstructed')
-figure(3)
-plot(abs(z-y(t)),'linewidth',2);
-title('error');
-figure(4);
-subplot(3,1,1)
-plot(abs(fftshift(fft(y(t)))));
-xlabel('frequency')
-ylabel('amp')
-title('spectrum of original signal')
-subplot(3,1,2)
-plot(abs(fftshift(fft(q))))
-xlabel('freq')
-ylabel('amp')
-title('spectrum of SDQ')
-subplot(3,1,3)
-plot(abs(fftshift(fft(z))))
-title('spectrum of recovered signal')
-xlabel('freq')
-ylabel('amp')
-error=immse(z,y(t));
-function[u,q]=SDQ(y,t)
-q=zeros(1,length(t));
-u=zeros(1,length(t));
-u(1)=0.9;
-for k=2:length(t)
-    q(k)=sign(u(k-1)+y(k));
-    u(k)=u(k-1)+y(k)-q(k);
-end
-end
+% Script subsampling_1.m in which a subsampling is examined
+% Works with the Simulink model subsampling1.slx
+clear;
+% ------- Initializations
+fsin = 39e3;              % Sine input signal 
+fc = 40e3;                % Center frequency of the bandpass signal
+delta_f = 4e3;            % Bandwidth
+fnoise = 1e6;             % Sampling frequency for the 'Band-Limited White
+                      % Noise' block
+fs = 18e3;                % NZ = 5;
+%fs = 15e3;               % NZ = 6;            
+%fs = 14.5455e3;          % NZ = 6;
+%fs = 17.777e3;           % NZ = 5;
+
+% ------- Analog filter for the random signal
+fmin = fc - delta_f/2;    % Lower limit of the frequency band
+fmax = fc + delta_f/2;    % Upper limit
+
+nord = 6;
+dp = 1;                   % Ripple in the passband in dB
+ds = 40;                  % Attenuation in the stop band in dB
+
+[b,a] = ellip(nord, 1, ds,[fmin, fmax]*2*pi,'s');  % Elliptical filter
+% Frequency response
+[H,w] = freqs(b,a);
+figure(1),     clf;
+plot(w/(2*pi), 20*log10(abs(H)),'k-','LineWidth',1);
+title('Amplitude response of the analog filter');
+xlabel('Hz');    ylabel('dB');     grid on;
+
+% ------- Calling the simulation
+Tfinal = 0.5;
+sim('subsampling1',[0,Tfinal]);
+ys = y.Data;
+t = y.Time;
+
+figure(2),    clf;
+stairs(t, ys,'k-','LineWidth',1);
+title('Signal after the ''Upsample'' block (excerpt)');
+xlabel('s');     grid on;
+La = axis;   axis([0.44, 0.441, La(3:4)]);
+
+% ------- Power spectral density after the upsample
+[Pyy,F] = pwelch(ys,hann(4096),[256],4096,fs*10);
+
+figure(3),    clf;
+plot(F, 10*log10(Pyy),'k-','LineWidth',1);
+title(['Power spectral density of the subsampled signal'...
+    ' over several periods']);
+ylabel('dBW/Hz');      grid on;
+xlabel(['Frequency in Hz (fs = ',num2str(fs),' Hz)']);   
+La = axis;    axis([0, max(F), La(3:4)]);
+
+
+
+
